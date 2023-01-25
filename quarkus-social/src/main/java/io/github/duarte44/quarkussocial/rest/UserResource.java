@@ -3,14 +3,18 @@ package io.github.duarte44.quarkussocial.rest;
 import io.github.duarte44.quarkussocial.domain.model.User;
 import io.github.duarte44.quarkussocial.domain.repository.UserRepository;
 import io.github.duarte44.quarkussocial.rest.dto.CreateUserRequest;
+import io.github.duarte44.quarkussocial.rest.dto.ResponseError;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 
 import javax.inject.Inject;
 import javax.transaction.Transactional;
+import javax.validation.ConstraintViolation;
+import javax.validation.Validator;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import java.util.Set;
 
 @Path("/users")
 @Consumes(MediaType.APPLICATION_JSON) //TIPO DE OBJETOS QUE VAI CONSUMIR NA REQUISIÇÃO
@@ -19,15 +23,24 @@ public class UserResource {
 
 
     private UserRepository repository;
+    private Validator validator;
 
     @Inject
-    public UserResource(UserRepository repository){
+    public UserResource(UserRepository repository, Validator validator){
         this.repository = repository;
+        this.validator = validator;
     }
 
     @POST
     @Transactional //TRANSAÇÃO COM O BANCO
     public Response createUser( CreateUserRequest userRequest ){
+
+        //retorna os erros
+        Set<ConstraintViolation<CreateUserRequest>> violations = validator.validate(userRequest);
+        if(!violations.isEmpty()){
+            return ResponseError.createFromValidation(violations)
+                    .withStatusCode(ResponseError.UNPROCESSABLE_ENTITY_STATUS);
+        }
 
         User user = new User();
         user.setAge(userRequest.getAge());
@@ -35,7 +48,8 @@ public class UserResource {
 
         repository.persist(user); //salva a entidade no banco
 
-        return Response.ok(user).build();
+        return Response.status(Response.Status.CREATED.getStatusCode())
+                .entity(user).build();
 
     }
 
@@ -53,7 +67,7 @@ public class UserResource {
 
         if(user != null) {
             repository.delete(user);
-            return Response.ok().build();
+            return Response.noContent() .build();
         }
         else{
             return Response.status(Response.Status.NOT_FOUND).build();
@@ -71,7 +85,7 @@ public class UserResource {
         if(user != null) {
             user.setName(userData.getName());
             user.setAge(userData.getAge());
-            return Response.ok().build();
+            return Response.noContent().build();
         }
         else{
             return Response.status(Response.Status.NOT_FOUND).build();
